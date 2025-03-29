@@ -22,6 +22,11 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+app.get('/check', (req, res) => {
+    res.send("<h1>Server started</h1>");
+});
+
+
 // Serve static files for uploaded images
 app.use('/uploads', express.static('uploads'));
 
