@@ -5,7 +5,9 @@ const fs = require('fs');
 const cors = require('cors');
 const multer = require('multer');
 const PORT = process.env.PORT || 5000;
-const mongo_connect = "mongodb://localhost:27017/emp";
+// const mongo_connect = "mongodb://localhost:27017/emp";
+const mongo_connect =  process.env.mongo_url || "mongodb://localhost:27017/emp";
+
 
 // Ensure the uploads directory exists
 const path = './uploads';

@@ -3,40 +3,48 @@ import './App.css';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 
+const server_url = process.env.REACT_APP_SERVER_URL || "http://localhost:5000";
+
 function Home() {
-  const [employees, setEmployees] = useState([]); // For storing fetched employee data
-  const [data, setData] = useState([]); // For storing data to display in the table (filtered or full list)
-  const [search, setSearch] = useState(''); // For storing the search input
-  const [searchBy, setSearchBy] = useState('id'); // For storing the field by which to search (id, name, phone)
+  const [employees, setEmployees] = useState([]); // Store fetched employee data
+  const [data, setData] = useState([]); // Data to display (filtered or full list)
+  const [search, setSearch] = useState(''); // Search input
+  const [searchBy, setSearchBy] = useState('id'); // Search filter (id, name, phone)
 
   // Fetch employees data from the backend
   useEffect(() => {
-    axios.get("http://localhost:5000")
+    axios.get(server_url)
       .then(result => {
-        console.log(result.data);
-        setEmployees(result.data); // Set fetched employee data
-        setData(result.data); // Initialize the table with the full list of employees
+        console.log("API Response:", result.data);
+        if (Array.isArray(result.data)) {
+          setEmployees(result.data);
+          setData(result.data);
+        } else {
+          console.error("Expected an array but got:", typeof result.data);
+          setEmployees([]);
+          setData([]);
+        }
       })
-      .catch(err => console.log(err)); // Log any errors
+      .catch(err => console.error("Error fetching employees:", err));
   }, []);
 
-  // *********** searchHandle ************** //
+  // Search handler
   function searchHandle(event) {
-    event.preventDefault(); // Prevent page reload on form submission
+    event.preventDefault(); // Prevent page reload
     
-    // Apply filtering based on search input and searchBy criteria
-    const filteredEmployees = employees.filter((employee) => {
+    // Filter data based on search criteria
+    const filteredEmployees = employees.filter(employee => {
       if (searchBy === 'id') {
-        return employee.employeeId.toLowerCase().includes(search.toLowerCase());
+        return employee.employeeId?.toLowerCase().includes(search.toLowerCase());
       } else if (searchBy === 'name') {
-        return employee.name.toLowerCase().includes(search.toLowerCase());
+        return employee.name?.toLowerCase().includes(search.toLowerCase());
       } else if (searchBy === 'phone') {
-        return String(employee.phone).includes(search);
+        return String(employee.phone || '').includes(search);
       }
       return false;
     });
 
-    setData(filteredEmployees); // Update data state with filtered results
+    setData(filteredEmployees); // Update displayed data
   }
 
   return (
@@ -96,18 +104,17 @@ function Home() {
             </tr>
           </thead>
           <tbody>
-            {data.map((employee, idx) => (
-              <tr key={employee._id}>
+            {Array.isArray(data) && data.map((employee, idx) => (
+              <tr key={employee._id || idx}>
                 <td>{idx + 1}</td>
-                <td>{employee.name}</td>
+                <td>{employee.name || 'N/A'}</td>
                 <td>
                   <Link className='rk' to={`/viewdetail/${employee.employeeId}`} style={{ textDecoration: "none"}}>
-                    {employee.employeeId}
+                    {employee.employeeId || 'N/A'}
                   </Link>
                 </td>
-
-                <td>{employee.department}</td>
-                <td>{employee.phone}</td>
+                <td>{employee.department || 'N/A'}</td>
+                <td>{employee.phone || 'N/A'}</td>
                 <td>
                   <Link className='btn' to={`/update/${employee.employeeId}`}>Update</Link>
                 </td>

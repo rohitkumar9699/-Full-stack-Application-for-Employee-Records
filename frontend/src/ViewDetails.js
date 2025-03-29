@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import './View.css';
 
+const server_url = process.env.REACT_APP_SERVER_URL || "http://localhost:5000";
+
 function ViewDetails() {
   const { id } = useParams(); // Get 'id' from URL parameters
   const [data, setData] = useState(null);
@@ -11,10 +13,10 @@ function ViewDetails() {
 
   // Fetch employee details from backend
   useEffect(() => {
-    axios.get(`http://localhost:5000/viewdetail/${id}`)
+    axios.get(`${server_url}/viewdetail/${id}`)
       .then(result => {
         setData(result.data);
-        setProfileImage(`http://localhost:5000/${result.data.profileImage}`); // Set image URL        
+        setProfileImage(`${server_url}/${result.data.profileImage}`); // Set image URL        
       })
       .catch(err => console.log(err));
   }, [id]);
@@ -30,7 +32,7 @@ function ViewDetails() {
   };
 
   const handleDelete = () => {
-    axios.delete(`http://localhost:5000/delete/${id}`)
+    axios.delete(`${server_url}/delete/${id}`)
       .then(() => {
         navigate("/"); // Navigate back to the main page after deletion
       })

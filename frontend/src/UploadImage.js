@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+const server_url = process.env.REACT_APP_SERVER_URL || "http://localhost:5000";
+
 
 function UploadImage({profileImage, setprofileImage}) {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -21,7 +23,7 @@ function UploadImage({profileImage, setprofileImage}) {
 
     try {
       // Send the POST request using Axios
-      const response = await axios.post('http://localhost:5000/upload', formData, {
+      const response = await axios.post(`${server_url}/upload`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

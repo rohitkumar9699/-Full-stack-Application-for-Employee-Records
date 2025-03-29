@@ -4,6 +4,8 @@ import axios from "axios";
 import { useNavigate } from 'react-router-dom';
 import UploadImage from './UploadImage';
 
+const server_url = process.env.REACT_APP_SERVER_URL || "http://localhost:5000";
+
 function AddEmployee() {
   const [districts, setDistricts] = useState([]);
   const [cities, setCities] = useState([]);
@@ -81,7 +83,7 @@ function AddEmployee() {
       return;
     }
     axios
-      .post("http://localhost:5000/create", {
+      .post(`${server_url}/create`, {
         name, phone, dateOfBirth, dateOfJoining, department, employmentStatus, marital, gender, profileImage, address
       })
       .then((result) => {
