@@ -5,13 +5,20 @@ const cors = require('cors');
 const multer = require('multer');
 const { GridFSBucket } = require('mongodb');
 const { Readable } = require('stream');
+require('dotenv').config();
+
 const PORT = process.env.PORT || 5000;
+
 const mongo_connect = process.env.mongo_url || "mongodb://localhost:27017/emp";
 
-// Connect to MongoDB
-mongoose.connect(mongo_connect)
-    .then(() => console.log("Mongoose Connected Successfully!"))
-    .catch(err => console.log("MongoDB Connection Error: ", err));
+if (!mongo_connect) {
+    console.error('MongoDB connection string is undefined. Please check your environment variables.');
+    process.exit(1); // Exit the application with an error code
+  }
+  
+  mongoose.connect(mongo_connect)
+    .then(() => console.log('MongoDB connected successfully'))
+    .catch(err => console.error('MongoDB connection error:', err));
 
 const app = express();
 app.use(express.json());
