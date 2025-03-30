@@ -1,19 +1,12 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const Employee = require("./model/Schema.js");
-const fs = require('fs');
 const cors = require('cors');
 const multer = require('multer');
+const { GridFSBucket } = require('mongodb');
+const { Readable } = require('stream');
 const PORT = process.env.PORT || 5000;
-// const mongo_connect = "mongodb://localhost:27017/emp";
-const mongo_connect =  process.env.mongo_url || "mongodb://localhost:27017/emp";
-
-
-// Ensure the uploads directory exists
-const path = './uploads';
-if (!fs.existsSync(path)) {
-    fs.mkdirSync(path);
-}
+const mongo_connect = process.env.mongo_url || "mongodb://localhost:27017/emp";
 
 // Connect to MongoDB
 mongoose.connect(mongo_connect)
@@ -28,20 +21,8 @@ app.get('/check', (req, res) => {
     res.send("<h1>Server started</h1>");
 });
 
-
-// Serve static files for uploaded images
-app.use('/uploads', express.static('uploads'));
-
-// Set up Multer for file uploads
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, './uploads'); // Ensure the uploads folder exists
-    },
-    filename: function (req, file, cb) {
-        cb(null, `${Date.now()}-${file.originalname}`);
-    }
-});
-
+// Set up Multer for memory storage (since we'll stream to MongoDB)
+const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 // Route to fetch all employees
@@ -51,24 +32,72 @@ app.get("/", (req, res) => {
         .catch(err => res.status(500).json({ error: "Failed to fetch employees", details: err }));
 });
 
-// Route to create an employee with image upload
-app.post("/create", upload.single('profileImage'), (req, res) => {
-    const { name, phone, dateOfBirth, dateOfJoining, department, employmentStatus, marital, gender, address } = req.body;
+// Add this new route for image upload only
+app.post("/upload", upload.single('profileImage'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: "No file uploaded" });
+        }
 
-    if (!name || !phone || !dateOfBirth || !dateOfJoining || !department || !employmentStatus || !gender || !address) {
-        return res.status(400).json({ error: "Missing required fields" });
+        const db = mongoose.connection.db;
+        const bucket = new GridFSBucket(db, { bucketName: 'images' });
+
+        const readableStream = new Readable();
+        readableStream.push(req.file.buffer);
+        readableStream.push(null);
+
+        const uploadStream = bucket.openUploadStream(req.file.originalname, {
+            contentType: req.file.mimetype
+        });
+
+        readableStream.pipe(uploadStream);
+
+        await new Promise((resolve, reject) => {
+            uploadStream.on('finish', resolve);
+            uploadStream.on('error', reject);
+        });
+
+        res.status(200).json({ 
+            message: "Image uploaded successfully",
+            imageId: uploadStream.id.toString()
+        });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to upload image", details: err });
     }
+});
 
-    const employeeId = department[0].toUpperCase() + "-" + new Date(dateOfJoining).toISOString().substr(0, 4);
-    req.body.employeeId = employeeId;
+// Modify the create route to accept imageId instead of file
+app.post("/create", async (req, res) => {
+    try {
+        const { name, phone, dateOfBirth, dateOfJoining, department, 
+                employmentStatus, marital, gender, address, imageId } = req.body;
 
-    if (req.file) {
-        req.body.profileImage = req.file.path;
+        if (!name || !phone || !dateOfBirth || !dateOfJoining || !department || 
+            !employmentStatus || !gender || !address) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
+
+        const employeeId = department[0].toUpperCase() + "-" + new Date(dateOfJoining).toISOString().substr(0, 4);
+        
+        const employeeData = {
+            name,
+            phone,
+            dateOfBirth,
+            dateOfJoining,
+            department,
+            employmentStatus,
+            marital,
+            gender,
+            address,
+            employeeId,
+            profileImage: imageId || null
+        };
+
+        const result = await Employee.create(employeeData);
+        res.status(201).json(result);
+    } catch (err) {
+        res.status(500).json({ error: "Failed to create employee", details: err });
     }
-
-    Employee.create(req.body)
-        .then(result => res.status(201).json(result))
-        .catch(err => res.status(500).json({ error: "Failed to create employee", details: err }));
 });
 
 // Route to fetch specific employee details
@@ -85,18 +114,61 @@ app.get("/viewdetail/:id", (req, res) => {
         .catch(err => res.status(500).json({ error: "Failed to fetch employee", details: err }));
 });
 
-// Route to delete an employee by employeeId
-app.delete("/delete/:id", (req, res) => {
-    const { id } = req.params;
+// Route to serve images
+app.get("/image/:id", async (req, res) => {
+    try {
+        const db = mongoose.connection.db;
+        const bucket = new GridFSBucket(db, { bucketName: 'images' });
 
-    Employee.findOneAndDelete({ employeeId: id })
-        .then(deletedEmp => {
-            if (!deletedEmp) {
-                return res.status(404).json({ error: "Employee not found" });
+        const fileId = new mongoose.Types.ObjectId(req.params.id);
+        const downloadStream = bucket.openDownloadStream(fileId);
+
+        downloadStream.on('data', (chunk) => {
+            res.write(chunk);
+        });
+
+        downloadStream.on('error', () => {
+            res.status(404).send('Image not found');
+        });
+
+        downloadStream.on('end', () => {
+            res.end();
+        });
+    } catch (err) {
+        res.status(500).send('Error retrieving image');
+    }
+});
+
+// Route to delete an employee by employeeId
+app.delete("/delete/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // First find the employee to get the image ID
+        const employee = await Employee.findOne({ employeeId: id });
+        if (!employee) {
+            return res.status(404).json({ error: "Employee not found" });
+        }
+
+        // Delete the image from GridFS if it exists
+        if (employee.profileImage) {
+            const db = mongoose.connection.db;
+            const bucket = new GridFSBucket(db, { bucketName: 'images' });
+            const fileId = new mongoose.Types.ObjectId(employee.profileImage);
+            
+            try {
+                await bucket.delete(fileId);
+            } catch (err) {
+                console.log("Error deleting image (might not exist):", err);
             }
-            res.status(200).json({ message: "Employee deleted successfully" });
-        })
-        .catch(err => res.status(500).json({ error: "Failed to delete employee", details: err }));
+        }
+
+        // Delete the employee
+        await Employee.findOneAndDelete({ employeeId: id });
+        res.status(200).json({ message: "Employee deleted successfully" });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to delete employee", details: err });
+    }
 });
 
 // Route to update employee details
@@ -127,23 +199,6 @@ app.put('/update/:id', (req, res) => {
             return res.status(200).json({ message: "Employee updated successfully", data: result });
         })
         .catch(err => res.status(500).json({ message: "Error updating employee", error: err }));
-});
-
-// Route for file upload
-app.post("/upload", (req, res) => {
-    upload.single('profileImage')(req, res, function (err) {
-        if (err instanceof multer.MulterError) {
-            return res.status(500).json({ message: 'Multer error', error: err });
-        } else if (err) {
-            return res.status(500).json({ message: 'Unknown error', error: err });
-        }
-
-        if (!req.file) {
-            return res.status(400).json({ message: 'No file uploaded' });
-        }
-
-        res.json({ message: "Successfully Uploaded", filePath: req.file.path });
-    });
 });
 
 // Start the server

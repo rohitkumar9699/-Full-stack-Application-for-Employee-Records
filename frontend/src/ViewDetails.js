@@ -9,6 +9,7 @@ function ViewDetails() {
   const { id } = useParams(); // Get 'id' from URL parameters
   const [data, setData] = useState(null);
   const [profileImage, setProfileImage] = useState(''); // For storing the image URL
+  const [imageError, setImageError] = useState(false); // To handle image loading errors
   const navigate = useNavigate();
 
   // Fetch employee details from backend
@@ -16,12 +17,13 @@ function ViewDetails() {
     axios.get(`${server_url}/viewdetail/${id}`)
       .then(result => {
         setData(result.data);
-        setProfileImage(`${server_url}/${result.data.profileImage}`); // Set image URL        
+        // Set image URL using the correct endpoint for GridFS
+        if (result.data.profileImage) {
+          setProfileImage(`${server_url}/image/${result.data.profileImage}`);
+        }
       })
       .catch(err => console.log(err));
   }, [id]);
-  console.log(profileImage);
-
 
   if (!data) {
     return <div>Loading...</div>; // If data is not available
@@ -96,16 +98,57 @@ function ViewDetails() {
 
         <div>
           <h3>Profile Image</h3>
-          <div style={{ width: "120px", height: "120px", background: "yellow" }}>
-            {/* <img src={profileImage} alt="Employee Profile" /> */}
-            <img src={profileImage} alt="Not available" style={{ width: "100%", height: "100%" }}></img>
-
+          <div style={{ width: "120px", height: "120px", background: "#f0f0f0" }}>
+            {profileImage && !imageError ? (
+              <img 
+                src={profileImage} 
+                alt="Employee Profile" 
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                onError={() => setImageError(true)}
+              />
+            ) : (
+              <div style={{
+                width: "100%",
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#999"
+              }}>
+                No Image Available
+              </div>
+            )}
           </div>
         </div>
 
-        <div>
-          <button onClick={handleBack} style={{ background: 'green' }}>Back</button>
-          <button onClick={handleDelete} style={{ background: 'red' }}>Delete</button>
+        <div style={{ marginTop: "20px" }}>
+          <button 
+            onClick={handleBack} 
+            style={{ 
+              background: 'green', 
+              color: 'white',
+              padding: '8px 16px',
+              marginRight: '10px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Back
+          </button>
+          <button 
+            onClick={handleDelete} 
+            style={{ 
+              background: 'red', 
+              color: 'white',
+              padding: '8px 16px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Delete
+          </button>
         </div>
       </div>
     </div>

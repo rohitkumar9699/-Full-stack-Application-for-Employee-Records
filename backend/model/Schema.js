@@ -37,9 +37,9 @@ const employeeSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    profileImage:{
-        type:String,
-        required:true
+    profileImage: {
+        type: mongoose.Schema.Types.ObjectId,  // Changed to store GridFS file ID
+        ref: 'images.files'  // Reference to GridFS collection
     },
     address: {
         state: String,

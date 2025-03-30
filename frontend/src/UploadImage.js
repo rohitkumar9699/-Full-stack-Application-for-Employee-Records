@@ -2,42 +2,43 @@ import React, { useState } from 'react';
 import axios from 'axios';
 const server_url = process.env.REACT_APP_SERVER_URL || "http://localhost:5000";
 
-
-function UploadImage({profileImage, setprofileImage}) {
+function UploadImage({ profileImage, setprofileImage }) {
   const [selectedFile, setSelectedFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
   const handleFileChange = (e) => {
-    setSelectedFile(e.target.files[0]); // Set the selected file
+    setSelectedFile(e.target.files[0]);
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault(); // Prevent the default form submission
+    e.preventDefault();
 
     if (!selectedFile) {
       alert('Please select a file first.');
       return;
     }
 
+    setUploading(true);
+
     const formData = new FormData();
     formData.append('profileImage', selectedFile);
 
     try {
-      // Send the POST request using Axios
       const response = await axios.post(`${server_url}/upload`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
 
-      // Display a success message with the file path if the request is successful
       if (response.status === 200) {
-        setprofileImage(response.data.filePath)
-        alert(`Successfully Uploaded. File path: ${response.data.filePath}`);
+        setprofileImage(response.data.imageId);
+        alert('Image uploaded successfully!');
       }
     } catch (error) {
-      // Display an error message if the upload fails
-      alert('Upload Failed');
-      console.error('Error uploading the file:', error.response ? error.response.data : error.message);
+      console.error('Error uploading image:', error);
+      alert('Image upload failed. Please try again.');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -50,9 +51,13 @@ function UploadImage({profileImage, setprofileImage}) {
           name="profileImage"
           onChange={handleFileChange}
           style={{ margin: "10px", width: "250px" }}
+          accept="image/*"
         />
-        <button  type="submit">Upload</button>
+        <button type="submit" disabled={uploading}>
+          {uploading ? 'Uploading...' : 'Upload'}
+        </button>
       </form>
+      {profileImage && <p>Image uploaded successfully!</p>}
     </div>
   );
 }
