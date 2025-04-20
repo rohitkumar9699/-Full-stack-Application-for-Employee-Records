@@ -10,6 +10,7 @@ function Home() {
   const [data, setData] = useState([]); // Data to display (filtered or full list)
   const [search, setSearch] = useState(''); // Search input
   const [searchBy, setSearchBy] = useState('id'); // Search filter (id, name, phone)
+  const [loading, setLoading] = useState(true); // Track loading state
 
   // Fetch employees data from the backend
   useEffect(() => {
@@ -24,8 +25,12 @@ function Home() {
           setEmployees([]);
           setData([]);
         }
+        setLoading(false); // Done loading
       })
-      .catch(err => console.error("Error fetching employees:", err));
+      .catch(err => {
+        console.error("Error fetching employees:", err);
+        setLoading(false); // Done loading even on error
+      });
   }, []);
 
   // Search handler
@@ -45,6 +50,11 @@ function Home() {
     });
 
     setData(filteredEmployees); // Update displayed data
+  }
+
+  // Show loading message while fetching
+  if (loading) {
+    return <div className="main"><h2>Loading employee data...</h2></div>;
   }
 
   return (
